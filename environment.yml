@@ -8,5 +8,5 @@ channels:
 dependencies:
  - samtools=1.9
  - star=2.7.0e
- - multiqc=1.7
+ - multiqc=1.6
  - fastp=0.19.7
