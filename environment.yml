@@ -1,6 +1,6 @@
 # You can use this file to create a conda environment for the genome-annotation pipeline:
 #   conda env create -f environment.yml
-name: miRNApipe-1.0
+name: mirnapipe-1.0
 channels:
  - defaults
  - conda-forge

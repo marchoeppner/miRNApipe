@@ -1,5 +1,5 @@
 Bootstrap:docker
-From:continuumio/anaconda
+From:nfcore/base
 
 %labels
     MAINTAINER Marc Hoeppner <m.hoeppner@ikmb.uni-kiel.de>
@@ -7,7 +7,7 @@ From:continuumio/anaconda
     VERSION 1.0
 
 %environment
-    PATH=/opt/conda/envs/miRNApipe-1.0/bin:$PATH
+    PATH=/opt/conda/envs/mirnapipe-1.0/bin:$PATH
     export PATH
 
 %files
