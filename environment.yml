@@ -8,7 +8,5 @@ channels:
 dependencies:
  - samtools=1.9
  - star=2.7.0e
- - r-base=3.5.1
- - r-reshape2=1.4.3
  - multiqc=1.7
  - fastp=0.19.7

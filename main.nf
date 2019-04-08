@@ -72,6 +72,18 @@ Specify all input settings and files
 
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 
+if (params.star_index) {
+	star_index = Channel
+        .fromPath(params.star_index)
+        .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
+} else if (params.fasta) {
+	Channel.fromPath(params.fasta)
+        .ifEmpty { exit 1, "Fasta file not found: ${params.fasta}" }
+	.into { ch_fasta_for_star_index  }
+} else {
+    exit 1, "No reference genome specified!"
+}
+
 // Whether to send a notification upon workflow completion
 params.email = false
 
@@ -86,13 +98,17 @@ OUTDIR=file(params.outdir)
 run_name = ( params.run_name == false) ? "${workflow.sessionId}" : "${params.run_name}"
 
 summary['runName'] = run_name
-summary['genome'] = params.genome
+if (params.genome) {
+	summary['genome'] = params.genome
+}
+if (params.fasta ) {
+	summary['fasta'] = params.fasta
+}
+summary['gtf'] = params.gtf
 summary['reads'] = params.reads
 summary['Current home'] = "$HOME"
 summary['Current user'] = "$USER"
 summary['Current path'] = "$PWD"
-summary['Assembly'] = params.assembly
-summary['gtf'] = params.gtf
 summary['SessionID'] = workflow.sessionId
 
 //
@@ -147,11 +163,10 @@ if(!params.star_index && params.fasta){
 	star_index = Channel.fromPath(params.star_index)
 } else {
 	exit 1; "Neither a star index folder (--star_index) nor a genome fasta file (--fasta) provided, cannot proceed."
-
+}
 // Clean up reads
 
 process runFastp {
-
 
 	tag "${id}"
 	publishDir "${OUTDIR}/{id}/fastp", mode: 'copy'
@@ -174,6 +189,8 @@ process runFastp {
 	}
 
         left = file(reads[0]).getName() + "_trimmed.fastq.gz"
+	json = file(reads[0]).getBaseName() + ".fastp.json"
+	html = file(reads[0]).getBaseName() + ".fastp.html"
 
 	if (params.singleEnd) {
 		"""
