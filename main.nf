@@ -70,6 +70,15 @@ log.info "Starting at:          $workflow.start"
 Specify all input settings and files
 +++++++++++++++++++++++++++++++++ */
 
+if (params.kit) {
+	params.adapter = params.kits[params.kit].adapter
+	params.adapter_2 = params.kits[params.kit].adapter_2
+} else if (params.adapter) {
+
+} else {
+	// exit 1; "Don't know which adapter(s) to use for trimming (use --kit or --adapter/--adapter_2)"
+}
+
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 
 if (params.star_index) {
@@ -169,7 +178,7 @@ if(!params.star_index && params.fasta){
 process runFastp {
 
 	tag "${id}"
-	publishDir "${OUTDIR}/{id}/fastp", mode: 'copy'
+	publishDir "${OUTDIR}/${id}/fastp", mode: 'copy'
 
 	input:
 	set val(id),file(reads) from raw_reads_fastp
@@ -210,6 +219,7 @@ process runFastp {
 process runStar {
 
 	tag "${id}"
+        publishDir "${OUTDIR}/${id}/STAR", mode: 'copy'
 
 	input:
 	set val(id),file(reads) from trimmed_reads
@@ -223,14 +233,29 @@ process runStar {
 	bam = id + "Aligned.sortedByCoord.out.bam"
 		
 	"""
-		STAR --genomeDir ${params.star_index} --readFilesIn $reads  --outSAMunmapped Within \
-       		--readFilesCommand zcat  --outSAMtype BAM SortedByCoordinate  --quantMode GeneCounts \
+		STAR --genomeDir ${params.star_index} --readFilesIn $reads  \
+		--outSAMunmapped Within \
+       		--readFilesCommand zcat \
+		--outSAMtype BAM SortedByCoordinate \
+		--quantMode TranscriptomeSAM GeneCounts \
+		--outReadsUnmapped Fastx \
+		--alignEndsType EndToEnd \
+		--outFilterMismatchNmax 1 \
+		--outFilterMultimapScoreRange 0 \
+		--outFilterScoreMinOverLread 0 \
+		--outFilterMatchNminOverLread 0 \
+		--outWigType wiggle \
        		--outFileNamePrefix $id \
 		--sjdbGTFfile $gtf \
        		--limitBAMsortRAM 32212254720 \
-       		--runThreadN ${task.cpus} --genomeLoad LoadAndKeep \
-       		--outFilterMultimapNmax ${params.n_multimap} --clip3pAdapterSeq TGGAATTCTC --clip3pAdapterMMp 0.1 --outFilterMismatchNoverLmax 0.03 \
-       		--outFilterScoreMinOverLread 0 --outFilterMatchNminOverLread 0 --outFilterMatchNmin 16 --alignSJDBoverhangMin 1000 --alignIntronMax 1
+       		--runThreadN ${task.cpus} --genomeLoad NoSharedMemory \
+       		--outFilterMultimapNmax ${params.n_multimap} 
+		--outFilterMatchNmin 16 \
+		--alignSJDBoverhangMin 1000 \
+		--alignIntronMax 1 \
+		--outWigStrand Stranded \
+		--outWigNorm RPM
+		--clip3pAdapterSeq TGGAATTCTC --clip3pAdapterMMp 0.1 --outFilterMismatchNoverLmax 0.03
 	"""
 }
 
