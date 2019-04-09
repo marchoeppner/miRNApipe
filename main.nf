@@ -84,6 +84,7 @@ if (params.kit) {
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.ftp = params.genome ? params.genomes[ params.genome ].ftp ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
+params.short_name = params.genome ? params.genomes[ params.genome ].short_name ?: false : false
 
 if (!params.gtf) {
 	exit 1, "Missing miRNA annotations in GTF/GFF format (--gtf)"
@@ -325,7 +326,6 @@ process runStarHairpins {
                 --outFilterMatchNminOverLread 0 \
                 --outWigType wiggle \
                 --outFileNamePrefix $id \
-                --sjdbGTFfile $gtf \
                 --limitBAMsortRAM 32212254720 \
                 --runThreadN ${task.cpus} --genomeLoad NoSharedMemory \
                 --outFilterMultimapNmax ${params.n_multimap} \
@@ -433,6 +433,7 @@ process runMultiqc {
 }
 
 workflow.onComplete {
+
   log.info "========================================="
   log.info "Duration:		$workflow.duration"
   log.info "========================================="

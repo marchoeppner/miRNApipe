@@ -40,19 +40,22 @@ More information on how to configure Nextflow, see [here](https://www.nextflow.i
 
 ## Genome references
 
-### iGenomes
+### Genome index
 
-This pipeline is agnostic with respect to the genome you wish to use as a basis for your analysis. We find it easiest to fall back on the iGenomes reference pack as it includes a wide range of pre-formatted references of typically used model systems. 
+Since this pipelines uses mirTop as part of its processing chain, users are limited to genome assemblies supported in miRBase. 
 
-To get your own iGenomes data, you can refer to [this](https://github.com/ewels/AWS-iGenomes) instruction. 
+To speed up the pipelines, please consider downloading your genome assembly of interest to a locatation that is visible on your cluster,
+create an index folder for the STAR aligner and provide that location as command line option to the pipeline using `--star_index`. 
 
-iGenomes data is organized in a hierarchical folder structure, in which "references" is the top level. You can point your cluster config to this location and the pipeline will be able to pick up the desired genome automatically (assuming it was indeed downloaded). 
+Genomes and the ftp link to download them as follows:
 
-For this, please include the following line in your custom config file (see above):
+Human: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
 
-`igenomes_base=/path/to/igenomes/references`
+Mouse: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/635/GCA_000001635.4_GRCm38.p2/GCA_000001635.4_GRCm38.p2_genomic.fna.gz
 
-### Your custom genome
+C. elegans: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/002/985/GCA_000002985.3_WBcel235/GCA_000002985.3_WBcel235_genomic.fna.gz
 
-If you are using a species not included with iGenomes (or prefer another assembly version), you can of course use that too. Please see the usage instructions on how to specify custom genomes.
+D. melanogaster: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/215/GCA_000001215.4_Release_6_plus_ISO1_MT/GCA_000001215.4_Release_6_plus_ISO1_MT_genomic.fna.gz
+
+If you do not want to do that, any maybe only want to use this pipeline once, you can skip this step and simply specify the species name as `--genome human` (or your species of interest from the list above). The pipeline will then download the assembly and turn it into a STAR index. However, this step takes a long time.
 
