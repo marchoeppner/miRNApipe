@@ -4,15 +4,15 @@ This pipeline uses the Nextflow framework to translate its workflow onto a compu
 
 To ease the setup process, most of the software is automatically provisioned by the pipeline. However, you will need to have a few things available on your system:
 
-1) The [Nextflow](https://github.com/nextflow-io/nextflow/releases). Note that Nextflow requires Java (>= 1.8).
+* The [Nextflow](https://github.com/nextflow-io/nextflow/releases) framework. Note that Nextflow requires Java (>= 1.8).
 
 And either:
 
-2a) The package manager [Conda](https://anaconda.org/)
+* The package manager [Conda](https://anaconda.org/)
 
 or
 
-2b) The container framework [Singularity](https://github.com/sylabs/singularity) (see [documentation](https://www.sylabs.io/docs/) )
+* The container framework [Singularity](https://github.com/sylabs/singularity) (see [documentation](https://www.sylabs.io/docs/) )
 
 ## Cluster config files
 
@@ -34,6 +34,8 @@ Critical information includes:
 
 - Whether to use Conda or Singularity for software provisioning.
 
+An example of how to use this pipeline with Singularity on a Slurm cluster is given in the profile `ccga`, where the file [rzcluster.config](../conf/rzcluster.config) include the site-specific settings as well the information required to use Singularity. 
+
 More information on how to configure Nextflow, see [here](https://www.nextflow.io/docs/latest/config.html#)
 
 ## Genome references
@@ -44,7 +46,7 @@ This pipeline is agnostic with respect to the genome you wish to use as a basis 
 
 To get your own iGenomes data, you can refer to [this](https://github.com/ewels/AWS-iGenomes) instruction. 
 
-iGenomes data is organized in a hierarchical folder structure, if which "references" is the top level. You can point your cluster config to this location and the pipeline will be able to pick up the desired genome automatically (assuming it was indeed downloaded). 
+iGenomes data is organized in a hierarchical folder structure, in which "references" is the top level. You can point your cluster config to this location and the pipeline will be able to pick up the desired genome automatically (assuming it was indeed downloaded). 
 
 For this, please include the following line in your custom config file (see above):
 
