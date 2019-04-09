@@ -10,3 +10,4 @@ dependencies:
  - star=2.6.1d
  - multiqc=1.6
  - fastp=0.19.7
+ - mirtop=0.4.18a
