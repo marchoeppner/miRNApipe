@@ -190,11 +190,11 @@ process runFastp {
 	script:
 	def options = ""
 	
-	if (params.adapters) {
-		options += " -a ${params.adapters}"
+	if (params.adapter) {
+		options += " -a ${params.adapter}"
 	} 
-	if (params.adapters && !params.singleEnd ) {
-		options += " --adapter_sequence_r2 ${params.adapters_r2}"
+	if (params.adapter && !params.singleEnd ) {
+		options += " --adapter_sequence_r2 ${params.adapter_2}"
 	}
 
         left = file(reads[0]).getName() + "_trimmed.fastq.gz"
@@ -227,10 +227,16 @@ process runStar {
         file gtf from gtf_star.collect()
 
 	output:
-	set val(id),file(bam) into starBam
+	set val(id),file(bam),file(bai) into starBam
+	set val(id),file(counts) into StarCounts
+	set val(id),file(wig_plus),file(wig_minus) into StarWiggle
 
 	script:
 	bam = id + "Aligned.sortedByCoord.out.bam"
+	bai = bam + ".bai"
+	counts = id + "ReadsPerGene.out.tab"
+	wig_plus = id + "Signal.Unique.str1.out.wig"
+	wig_minus = id + "Signal.Unique.str2.out.wig"
 		
 	"""
 		STAR --genomeDir ${params.star_index} --readFilesIn $reads  \
@@ -249,13 +255,14 @@ process runStar {
 		--sjdbGTFfile $gtf \
        		--limitBAMsortRAM 32212254720 \
        		--runThreadN ${task.cpus} --genomeLoad NoSharedMemory \
-       		--outFilterMultimapNmax ${params.n_multimap} 
-		--outFilterMatchNmin 16 \
+       		--outFilterMultimapNmax ${params.n_multimap} \
 		--alignSJDBoverhangMin 1000 \
 		--alignIntronMax 1 \
 		--outWigStrand Stranded \
-		--outWigNorm RPM
+		--outWigNorm RPM \
 		--clip3pAdapterSeq TGGAATTCTC --clip3pAdapterMMp 0.1 --outFilterMismatchNoverLmax 0.03
+
+		samtools index $bam
 	"""
 }
 
