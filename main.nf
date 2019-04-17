@@ -179,7 +179,7 @@ log.info "Starting at:          $workflow.start"
 
 Channel
 	.fromPath("$baseDir/assets/miRBase/v22/hairpin.fa.gz")
-	.set { hairpin_for_index }
+	.set { haiprin_for_decomp }
 
 Channel
 	.fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
@@ -231,32 +231,24 @@ if(!params.star_index && params.fasta || !params.star_index && params.ftp ){
 }
 // Clean up reads
 
-process runHairpinStarIndex {
+process runDecompressHairpin {
 
-	publishDir "${OUTDIR}/hairpins", mode: 'copy'
-	
 	input:
-	file(hairpins) from hairpin_for_index
+	file(hairpin_gz) from haiprin_for_decomp
 
 	output:
-	file(hairpin_index) into hairpin_index
-	file(hairpin_fa) into hairpin_fasta
+	file(db) into hairpin_db
 
 	script:
-	hairpin_index = "star"
-	hairpin_fa = hairpins.getBaseName()
+	hairpin_fa = $hairpin_gz.getBaseName() 
+	hairpin_db = "db"
 
 	"""
-	mkdir -p $hairpin_index
+		mkdir -p db
+		gunzip -c $hairpins > $hairpin_fa
+		gunzip -c $hairpins > db/$hairpin_fa
+	"""
 	
-	gunzip -c $hairpins > $hairpin_fa
-
-	STAR \
-        	--runMode genomeGenerate \
-                --runThreadN ${task.cpus} \
-                --genomeDir $hairpin_index \
-                --genomeFastaFiles $hairpin_fa
-	"""
 }
 
 process runFastp {
@@ -268,7 +260,7 @@ process runFastp {
 	set val(id),file(reads) from raw_reads_fastp
 
 	output:
-	set val(id),file("*_trimmed.fastq.gz") into trimmed_reads, trimmed_reads_hairpin
+	set val(id),file("*_trimmed.fastq.gz") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner
 	file(json) into fastp_stats
 	
 	script:
@@ -287,82 +279,38 @@ process runFastp {
 
 	if (params.singleEnd) {
 		"""
-                fastp $options --in1 $reads --out1 $left -w ${task.cpus} -j $json -h $html --length_required 14 -p 
+                fastp $options --in1 $reads --out1 $left -w ${task.cpus} -j $json -h $html --length_required 14 -p --length_limit 30
 
 		"""
 	} else {
                 right = file(reads[1]).getName() + "_trimmed.fastq.gz"
 
 		"""
-		fastp $options --in1 $fastqR1 --in2 $fastqR2 --out1 $left --out2 $right -w ${task.cpus} -j $json -h $html --length_required 14 -p
+		fastp $options --in1 $fastqR1 --in2 $fastqR2 --out1 $left --out2 $right -w ${task.cpus} -j $json -h $html --length_required 14 -p --length_limit 30
 		"""
 	}
 
 }
 
-process runStarHairpins {
+process runMiraligner {
 
-	publishDir "${OUTDIR}/${id}/STAR_Hairpins", mode: 'copy'
-	
-	input:
-	file(star_index) from hairpin_index.collect()
-	set val(id),file(reads) from trimmed_reads_hairpin
-
-	output:
-	set val(id),file(bam) into bam_hairpin
-
-	script:
-	bam = id + "Aligned.sortedByCoord.out.bam"
-        bai = bam + ".bai"
-        counts = id + "ReadsPerGene.out.tab"
-        wig_plus = id + "Signal.Unique.str1.out.wig"
-        wig_minus = id + "Signal.Unique.str2.out.wig"
-        log_file = id + "Log.final.out"
-
-	"""
-                STAR --genomeDir $star_index --readFilesIn $reads  \
-                --outSAMunmapped Within \
-                --readFilesCommand zcat \
-                --outSAMtype BAM SortedByCoordinate \
-                --outReadsUnmapped Fastx \
-                --alignEndsType EndToEnd \
-                --outFilterMismatchNmax 1 \
-                --outFilterMultimapScoreRange 0 \
-                --outFilterScoreMinOverLread 0 \
-                --outFilterMatchNminOverLread 0 \
-                --outWigType wiggle \
-                --outFileNamePrefix $id \
-                --limitBAMsortRAM 32212254720 \
-                --runThreadN ${task.cpus} --genomeLoad NoSharedMemory \
-                --outFilterMultimapNmax ${params.n_multimap} \
-                --alignSJDBoverhangMin 1000 \
-                --alignIntronMax 1 \
-                --outWigStrand Stranded \
-                --outWigNorm RPM \
-                --clip3pAdapterSeq TGGAATTCTC --clip3pAdapterMMp 0.1 --outFilterMismatchNoverLmax 0.03
-
-                samtools index $bam
-        """
-}
-
-process runMirTop {
-
-	publishDir "${OUTDIR}/${id}/mirTop", mode: 'copy'
+	tag "${id}"
+	publishDir "${OUTDIR}/${id}/miraligner", mode: 'copy'
 
 	input:
-	set val(id),file(bam) from bam_hairpin
-	file(hairpin_fa) from hairpin_fasta.collect()
+	set val(id),file(reads) from trimmed_reads_miraligner
+	set file(mirdb) from hairpin_db.collect()
 
 	output:
-	file(out) into mirtop_out
+	set val(id),file(align) into miraligner_out
 	
 	script:
 
-	out = id + "_out"
+	isomir = "isomir_${id}"
+	"""
+		miraligner -sub 1 -trim 3 -add 3 -s $params.short_name -i $reads -db $mirdb -o $isomir -freq 
+	"""
 
-	"""
-		mirtop gff --sps hsa --hairpin $hairpin_fa --gtf $params.gtf -o $out $bam
-	"""
 }
 
 process runStar {
