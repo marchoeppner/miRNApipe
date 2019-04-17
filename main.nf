@@ -24,6 +24,8 @@ try {
               "============================================================"
 }
 
+supported_kits = params.kits.keySet()
+
 def helpMessage() {
   log.info"""
 ============================================
@@ -40,7 +42,7 @@ Mandatory arguments:
 
 --reads                 A pattern to define which reads to use
 --genome		The  name of the genome assembly to use
---kit			The library/adapter kit that was used (may alternatively specify the adapters as FASTA file, see below). 
+--kit			The library/adapter kit that was used (may alternatively specify the adapters as FASTA file, see below). Options are: $supported_kits
 
 Options:
 --igenomes_base		Location of the iGenomes folder on your cluster (may also be specified in your cluster config file)
@@ -58,29 +60,16 @@ if (params.help){
         exit 0
 }
 
-log.info "=================================================="
-log.info "miRNApipe alignment and quantification v${workflow.manifest.version}"
-log.info "Nextflow Version:     $workflow.nextflow.version"
-log.info "Command Line:         $workflow.commandLine"
-log.info "Authors:              S. Juzenas & Marc Hoeppner"
-log.info "================================================="
-log.info "Starting at:          $workflow.start"
-
 /* +++++++++++++++++++++++++++++++++
 Specify all input settings and files
 +++++++++++++++++++++++++++++++++ */
 
 OUTDIR=file(params.outdir)
 
-if (params.kit) {
-	params.adapter = params.kits[params.kit].adapter
-	params.adapter_2 = params.kits[params.kit].adapter_2
-} else if (params.adapter) {
-
-} else {
-	// exit 1; "Don't know which adapter(s) to use for trimming (use --kit or --adapter/--adapter_2)"
+if (!params.kits.containsKey(params.kit)) {
+	exit 1, "Kit $params.kit not found in ${params.kits.keySet()}"
 }
-
+params.adapter = params.kit ? params.kits[params.kit].adapter ?: false : false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.ftp = params.genome ? params.genomes[ params.genome ].ftp ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
@@ -161,10 +150,28 @@ if (params.fasta ) {
 }
 summary['gtf'] = params.gtf
 summary['reads'] = params.reads
+summary['kit'] = params.kit
+summary['adapter'] = params.adapter
 summary['Current home'] = "$HOME"
 summary['Current user'] = "$USER"
 summary['Current path'] = "$PWD"
 summary['SessionID'] = workflow.sessionId
+
+log.info "=================================================="
+log.info "miRNApipe alignment and quantification v${workflow.manifest.version}"
+log.info "Nextflow Version:     $workflow.nextflow.version"
+log.info "Command Line:         $workflow.commandLine"
+log.info "Authors:              S. Juzenas & Marc Hoeppner"
+log.info "================================================="
+log.info "Genome:               $params.genome"
+log.info "Reads:                $params.reads"
+log.info "SE data?:		$params.singleEnd"
+if (params.kit) {
+        log.info "Kit:          $params.kit"
+	log.info "Adapter:	$params.adapter"
+}
+log.info "================================================="
+log.info "Starting at:          $workflow.start"
 
 //
 // PIPELINE STARTS HERE
@@ -267,10 +274,10 @@ process runFastp {
 	script:
 	def options = ""
 	
-	if (params.adapter) {
+	if (params.adapter != false) {
 		options += " -a ${params.adapter}"
 	} 
-	if (params.adapter && !params.singleEnd ) {
+	if (params.adapter_2 != false  && !params.singleEnd ) {
 		options += " --adapter_sequence_r2 ${params.adapter_2}"
 	}
 
@@ -280,7 +287,7 @@ process runFastp {
 
 	if (params.singleEnd) {
 		"""
-                fastp $options --in1 $reads --out1 $left -w ${task.cpus} -j $json -h $html --length_required 14 -p
+                fastp $options --in1 $reads --out1 $left -w ${task.cpus} -j $json -h $html --length_required 14 -p 
 
 		"""
 	} else {
@@ -302,7 +309,7 @@ process runStarHairpins {
 	set val(id),file(reads) from trimmed_reads_hairpin
 
 	output:
-	set file(id),file(bam) into bam_hairpin
+	set val(id),file(bam) into bam_hairpin
 
 	script:
 	bam = id + "Aligned.sortedByCoord.out.bam"
@@ -317,7 +324,6 @@ process runStarHairpins {
                 --outSAMunmapped Within \
                 --readFilesCommand zcat \
                 --outSAMtype BAM SortedByCoordinate \
-                --quantMode TranscriptomeSAM GeneCounts \
                 --outReadsUnmapped Fastx \
                 --alignEndsType EndToEnd \
                 --outFilterMismatchNmax 1 \
@@ -355,7 +361,7 @@ process runMirTop {
 	out = id + "_out"
 
 	"""
-		mirtop gff -sps hsa --hairpin $hairpin_fa --gtf $params.gtf -o $out $bam
+		mirtop gff --sps hsa --hairpin $hairpin_fa --gtf $params.gtf -o $out $bam
 	"""
 }
 
