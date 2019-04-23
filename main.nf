@@ -179,7 +179,7 @@ log.info "Starting at:          $workflow.start"
 
 Channel
 	.fromPath("$baseDir/assets/miRBase/v22/hairpin.fa.gz")
-	.set { haiprin_for_decomp }
+	.set {hairpin_for_decomp }
 
 Channel
 	.fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
@@ -234,19 +234,19 @@ if(!params.star_index && params.fasta || !params.star_index && params.ftp ){
 process runDecompressHairpin {
 
 	input:
-	file(hairpin_gz) from haiprin_for_decomp
+	file(hairpin_gz) from hairpin_for_decomp
 
 	output:
 	file(db) into hairpin_db
 
 	script:
-	hairpin_fa = $hairpin_gz.getBaseName() 
+	hairpin_fa = hairpin_gz.getBaseName() 
 	hairpin_db = "db"
 
 	"""
 		mkdir -p db
-		gunzip -c $hairpins > $hairpin_fa
-		gunzip -c $hairpins > db/$hairpin_fa
+		gunzip -c $hairpin_gz > $hairpin_fa
+		gunzip -c $hairpin_gz > db/$hairpin_fa
 	"""
 	
 }
