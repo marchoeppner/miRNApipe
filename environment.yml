@@ -12,3 +12,4 @@ dependencies:
  - fastp=0.19.7
  - mirtop=0.4.18a
  - seqbuster
+ - fastx_toolkit=0.0.14

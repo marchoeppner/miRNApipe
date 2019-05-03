@@ -292,6 +292,7 @@ process runFastp {
 
 }
 
+
 process runMiraligner {
 
 	tag "${id}"
