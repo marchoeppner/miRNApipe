@@ -1,6 +1,6 @@
 # You can use this file to create a conda environment for the genome-annotation pipeline:
 #   conda env create -f environment.yml
-name: mirnapipe-1.0
+name: mirnaseq-1.0
 channels:
  - defaults
  - conda-forge
@@ -9,7 +9,7 @@ dependencies:
  - samtools=1.9
  - star=2.6.1d
  - multiqc=1.6
- - fastp=0.19.7
+ - cutadapt=2.3
  - mirtop=0.4.18a
  - seqbuster
  - fastx_toolkit=0.0.14

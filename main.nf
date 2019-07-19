@@ -36,7 +36,7 @@ Usage:
 
 A typical command to run this pipeline would be:
 
-nextflow run main.nf --reads 'data/*_R{1,2}_001.fastq.gz' --assembly GRCh37 --kit Nextera
+nextflow run main.nf --reads 'data/*_R1_001.fastq.gz' --assembly GRCh37 --kit Nextera
 
 Mandatory arguments:
 
@@ -251,47 +251,68 @@ process runDecompressHairpin {
 	
 }
 
-process runFastp {
+process runCutadapt {
 
 	tag "${id}"
-	publishDir "${OUTDIR}/${id}/fastp", mode: 'copy'
+	publishDir "${OUTDIR}/${id}/cutadapt", mode: 'copy'
 
 	input:
 	set val(id),file(reads) from raw_reads_fastp
 
 	output:
-	set val(id),file("*_trimmed.fastq.gz") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner
-	file(json) into fastp_stats
+	set val(id),file("*_trim.fastq") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner, trimmed_reads_collapse
+	file(json) into cutadapt_stats
 	
 	script:
 	def options = ""
 	
-	if (params.adapter != false) {
-		options += " -a ${params.adapter}"
-	} 
-	if (params.adapter_2 != false  && !params.singleEnd ) {
-		options += " --adapter_sequence_r2 ${params.adapter_2}"
-	}
-
-        left = file(reads[0]).getName() + "_trimmed.fastq.gz"
+        left = file(reads[0]).getName() + "_trim.fastq"
 	json = file(reads[0]).getBaseName() + ".fastp.json"
 	html = file(reads[0]).getBaseName() + ".fastp.html"
+	untrimmed_tp = file(reads[0].getName() + "_NO3AD.fastq"
+	untrimmed_fp = file(reads[0].getName() + "_NO5AD.fastq"
+	trimmed_short = file(reads[0].getName() + "_SHORT_FAIL.fastq"
 
 	if (params.singleEnd) {
 		"""
-                fastp $options --in1 $reads --out1 $left -w ${task.cpus} -j $json -h $html --length_required 14 -p --length_limit 30
-
-		"""
-	} else {
-                right = file(reads[1]).getName() + "_trimmed.fastq.gz"
-
-		"""
-		fastp $options --in1 $fastqR1 --in2 $fastqR2 --out1 $left --out2 $right -w ${task.cpus} -j $json -h $html --length_required 14 -p --length_limit 30
+		cutadapt -a ${params.adapter} \
+			-e 0.25 \
+			--match-read-wildcards \
+			--untrimmed-output $untrimmed \
+			$reads \
+			| cutadapt  \
+			-e 0.34 \
+			--match-reads-wildcards \
+			--no-indels \
+			-m 15 \
+			-O 6 \
+			-n 1 \
+            		-g ${params.adapter} \
+			- > $left
 		"""
 	}
-
 }
 
+process runCollapseReads {
+
+	publishDir "${OUTDIR}/${id}/CollapsedReads", mode: 'copy'
+
+	input:
+	set val(id),file(reads) from trimmed_reads_collapse
+
+	output:
+	set val(id),file(collapsed_reads) into collapsed_reads
+
+
+	process:
+	collapsed_reads = reads.getBaseName() + ".collapsed.fasta"
+
+	"""
+		fastq_to_fasta -Q33 -i $reads -o reads.fasta
+		fastx_collapser -i reads.fasta -o $collapsed_reads
+		rm reads.fasta
+	"""
+}
 
 process runMiraligner {
 
@@ -347,7 +368,7 @@ process runStar {
 		--quantMode TranscriptomeSAM GeneCounts \
 		--outReadsUnmapped Fastx \
 		--alignEndsType EndToEnd \
-		--outFilterMismatchNmax 1 \
+		--outFilterMismatchNmax 10 \
 		--outFilterMultimapScoreRange 0 \
 		--outFilterScoreMinOverLread 0 \
 		--outFilterMatchNminOverLread 0 \
@@ -372,7 +393,7 @@ process runMultiqc {
 	publishDir "${OUTDIR}/MultiQC", mode: 'copy'
 
 	input:
-	file(json) from fastp_stats.collect()
+	file(json) from cutadapt_stats.collect()
 	file(log) from LogToMultiqc.collect()
 	file(counts) from CountsToMultiqc.collect()
 
