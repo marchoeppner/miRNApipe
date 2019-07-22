@@ -6,4 +6,4 @@ COPY environment.yml /
 RUN conda env create -f /environment.yml && conda clean -a
 ENV PATH /opt/conda/envs/mirnaseq-1.0/bin:$PATH
 
-RUN apt-get install gzip unzip
+RUN apt-get -y install gzip unzip
