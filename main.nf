@@ -12,18 +12,6 @@ Implementation: M. Hoeppner & S. Juzenas
 
 */
 
-try {
-    if( ! nextflow.version.matches(">= $workflow.manifest.nextflowVersion") ){
-        throw GroovyException('Nextflow version too old')
-    }
-} catch (all) {
-    log.error "====================================================\n" +
-              "  Nextflow version $workflow.manifest.nextflowVersion required! You are running v$workflow.nextflow.version.\n" +
-              "  Pipeline execution will continue, but things may break.\n" +
-              "  Please use a more recent version of Nextflow!\n" +
-              "============================================================"
-}
-
 supported_kits = params.kits.keySet()
 
 def helpMessage() {
@@ -36,12 +24,12 @@ Usage:
 
 A typical command to run this pipeline would be:
 
-nextflow run main.nf --reads 'data/*_R1_001.fastq.gz' --assembly GRCh37 --kit Nextera
+nextflow run main.nf --reads 'data/*_R1_001.fastq.gz' --assembly GRCh38 --kit Nextera
 
 Mandatory arguments:
 
 --reads                 A pattern to define which reads to use
---genome		The  name of the genome assembly to use
+--assembly		The  name of the genome assembly to use
 --kit			The library/adapter kit that was used (may alternatively specify the adapters as FASTA file, see below). Options are: $supported_kits
 
 Options:
@@ -70,12 +58,12 @@ if (!params.kits.containsKey(params.kit)) {
 	exit 1, "Kit $params.kit not found in ${params.kits.keySet()}"
 }
 params.adapter = params.kit ? params.kits[params.kit].adapter ?: false : false
-params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
-params.ftp = params.genome ? params.genomes[ params.genome ].ftp ?: false : false
-params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
-params.short_name = params.genome ? params.genomes[ params.genome ].short_name ?: false : false
+params.star_index = params.assembly ? params.genomes[ params.assembly ].star ?: false : false
+params.ftp = params.assembly ? params.genomes[ params.assembly ].ftp ?: false : false
+params.gtf = params.assembly ? params.genomes[ params.assembly ].gtf ?: false : false
+params.short_name = params.assemmbly ? params.genomes[ params.assembly ].short_name ?: false : false
 
-if (!params.gtf) {
+if ( !params.gtf ) {
 	exit 1, "Missing miRNA annotations in GTF/GFF format (--gtf)"
 }
 
@@ -132,10 +120,6 @@ if (params.star_index) {
 // Whether to send a notification upon workflow completion
 params.email = false
 
-if(params.email == false) {
-	exit 1, "You must provide an Email address to which pipeline updates are send!"
-}
-
 def summary = [:]
 
 run_name = ( params.run_name == false) ? "${workflow.sessionId}" : "${params.run_name}"
@@ -180,12 +164,14 @@ log.info "Starting at:          $workflow.start"
 Channel
 	.fromPath("$baseDir/assets/miRBase/v22/hairpin.fa.gz")
 	.set {hairpin_for_decomp }
+Channel
+	.fromPath("$baseDir/assets/miRBase/v22/miRNA.str.zip")
+	.set { mirna_str_for_decomp }
 
 Channel
 	.fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
 	.ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
 	.into { raw_reads_fastqc; raw_reads_fastp }
-
 
 if( params.gtf ){
     Channel
@@ -231,10 +217,11 @@ if(!params.star_index && params.fasta || !params.star_index && params.ftp ){
 }
 // Clean up reads
 
-process runDecompressHairpin {
+process runMakeMirDB {
 
 	input:
 	file(hairpin_gz) from hairpin_for_decomp
+	file(mirna_str) from mirna_str_for_decomp
 
 	output:
 	file(db) into hairpin_db
@@ -247,11 +234,13 @@ process runDecompressHairpin {
 		mkdir -p db
 		gunzip -c $hairpin_gz > $hairpin_fa
 		gunzip -c $hairpin_gz > db/$hairpin_fa
+		unzip -d db/ $mirna_str
+		
 	"""
 	
 }
 
-process runCutadapt {
+process runFastp {
 
 	tag "${id}"
 	publishDir "${OUTDIR}/${id}/cutadapt", mode: 'copy'
@@ -260,35 +249,25 @@ process runCutadapt {
 	set val(id),file(reads) from raw_reads_fastp
 
 	output:
-	set val(id),file("*_trim.fastq") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner, trimmed_reads_collapse
+	set val(id),file("*_trimmed.fastq") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner, trimmed_reads_collapse
 	file(json) into cutadapt_stats
 	
 	script:
 	def options = ""
 	
-        left = file(reads[0]).getName() + "_trim.fastq"
+        left = file(reads[0]).getName() + "_trimmed.fastq"
 	json = file(reads[0]).getBaseName() + ".fastp.json"
 	html = file(reads[0]).getBaseName() + ".fastp.html"
-	untrimmed_tp = file(reads[0].getName() + "_NO3AD.fastq"
-	untrimmed_fp = file(reads[0].getName() + "_NO5AD.fastq"
-	trimmed_short = file(reads[0].getName() + "_SHORT_FAIL.fastq"
 
 	if (params.singleEnd) {
+
 		"""
-		cutadapt -a ${params.adapter} \
-			-e 0.25 \
-			--match-read-wildcards \
-			--untrimmed-output $untrimmed \
-			$reads \
-			| cutadapt  \
-			-e 0.34 \
-			--match-reads-wildcards \
-			--no-indels \
-			-m 15 \
-			-O 6 \
-			-n 1 \
-            		-g ${params.adapter} \
-			- > $left
+	               	fastp --in1 ${reads[0]} --out1 $left -w ${task.cpus} -j $json -h $html --length_required ${params.min_length} --length_limit ${params.max_length}
+		"""
+	} else {
+		right = file(reads[1]).getName() + "_trimmed.fastq"
+		"""
+			fastp --in1 $fastqR1 --in2 $fastqR2 --out1 $left --out2 $right -w ${task.cpus} -j $json -h $html --length_required ${params.min_length} --length_limit ${params.max_length}
 		"""
 	}
 }
@@ -304,7 +283,7 @@ process runCollapseReads {
 	set val(id),file(collapsed_reads) into collapsed_reads
 
 
-	process:
+	script:
 	collapsed_reads = reads.getBaseName() + ".collapsed.fasta"
 
 	"""

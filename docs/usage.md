@@ -20,4 +20,3 @@ or
 
 - Provide the genome assembly as FASTA file using `--fasta /path/to/genome.fasta`; a STAR index will be built for you (but this takes some time).
 
-
