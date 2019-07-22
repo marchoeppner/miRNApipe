@@ -13,3 +13,5 @@ dependencies:
  - mirtop=0.4.18a
  - seqbuster
  - fastx_toolkit=0.0.14
+ - unzip=6.0
+ - gzip=1.7

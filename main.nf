@@ -300,7 +300,7 @@ process runMiraligner {
 
 	input:
 	set val(id),file(reads) from trimmed_reads_miraligner
-	set file(mirdb) from hairpin_db.collect()
+	file(mirdb) from hairpin_db.collect()
 
 	output:
 	set val(id),file(align) into miraligner_out
