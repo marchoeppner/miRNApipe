@@ -147,7 +147,7 @@ log.info "Nextflow Version:     $workflow.nextflow.version"
 log.info "Command Line:         $workflow.commandLine"
 log.info "Authors:              S. Juzenas & Marc Hoeppner"
 log.info "================================================="
-log.info "Genome:               $params.genome"
+log.info "Genome:               $params.assembly"
 log.info "Reads:                $params.reads"
 log.info "SE data?:		$params.singleEnd"
 if (params.kit) {
@@ -217,29 +217,6 @@ if(!params.star_index && params.fasta || !params.star_index && params.ftp ){
 }
 // Clean up reads
 
-process runMakeMirDB {
-
-	input:
-	file(hairpin_gz) from hairpin_for_decomp
-	file(mirna_str) from mirna_str_for_decomp
-
-	output:
-	file(db) into hairpin_db
-
-	script:
-	hairpin_fa = hairpin_gz.getBaseName() 
-	hairpin_db = "db"
-
-	"""
-		mkdir -p db
-		gunzip -c $hairpin_gz > $hairpin_fa
-		gunzip -c $hairpin_gz > db/$hairpin_fa
-		unzip -d db/ $mirna_str
-		
-	"""
-	
-}
-
 process runFastp {
 
 	tag "${id}"
@@ -249,8 +226,8 @@ process runFastp {
 	set val(id),file(reads) from raw_reads_fastp
 
 	output:
-	set val(id),file("*_trimmed.fastq") into trimmed_reads, trimmed_reads_hairpin, trimmed_reads_miraligner, trimmed_reads_collapse
-	file(json) into cutadapt_stats
+	set val(id),file("*_trimmed.fastq") into trimmed_reads
+	file(json) into fastp_stats
 	
 	script:
 	def options = ""
@@ -262,7 +239,7 @@ process runFastp {
 	if (params.singleEnd) {
 
 		"""
-	               	fastp --in1 ${reads[0]} --out1 $left -w ${task.cpus} -j $json -h $html --length_required ${params.min_length} --length_limit ${params.max_length}
+	               	fastp --in1 ${reads[0]} --out1 $left -w ${task.cpus} -j $json -h $html --length_required ${params.min_length} --length_limit ${params.max_length} -a $params.adapter
 		"""
 	} else {
 		right = file(reads[1]).getName() + "_trimmed.fastq"
@@ -270,48 +247,6 @@ process runFastp {
 			fastp --in1 $fastqR1 --in2 $fastqR2 --out1 $left --out2 $right -w ${task.cpus} -j $json -h $html --length_required ${params.min_length} --length_limit ${params.max_length}
 		"""
 	}
-}
-
-process runCollapseReads {
-
-	publishDir "${OUTDIR}/${id}/CollapsedReads", mode: 'copy'
-
-	input:
-	set val(id),file(reads) from trimmed_reads_collapse
-
-	output:
-	set val(id),file(collapsed_reads) into collapsed_reads
-
-
-	script:
-	collapsed_reads = reads.getBaseName() + ".collapsed.fasta"
-
-	"""
-		fastq_to_fasta -Q33 -i $reads -o reads.fasta
-		fastx_collapser -i reads.fasta -o $collapsed_reads
-		rm reads.fasta
-	"""
-}
-
-process runMiraligner {
-
-	tag "${id}"
-	publishDir "${OUTDIR}/${id}/miraligner", mode: 'copy'
-
-	input:
-	set val(id),file(reads) from trimmed_reads_miraligner
-	file(mirdb) from hairpin_db.collect()
-
-	output:
-	set val(id),file(align) into miraligner_out
-	
-	script:
-
-	isomir = "isomir_${id}"
-	"""
-		miraligner -sub 1 -trim 3 -add 3 -s $params.short_name -i $reads -db $mirdb -o $isomir -freq 
-	"""
-
 }
 
 process runStar {
@@ -372,7 +307,7 @@ process runMultiqc {
 	publishDir "${OUTDIR}/MultiQC", mode: 'copy'
 
 	input:
-	file(json) from cutadapt_stats.collect()
+	file(json) from fastp_stats.collect()
 	file(log) from LogToMultiqc.collect()
 	file(counts) from CountsToMultiqc.collect()
 

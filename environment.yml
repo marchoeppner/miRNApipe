@@ -10,6 +10,3 @@ dependencies:
  - star=2.6.1d
  - multiqc=1.7
  - fastp=0.20.0
- - mirtop=0.4.18a
- - seqbuster
- - fastx_toolkit=0.0.14
