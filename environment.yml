@@ -10,3 +10,4 @@ dependencies:
  - star=2.6.1d
  - multiqc=1.7
  - fastp=0.20.0
+ - trim-galore=0.6.2
